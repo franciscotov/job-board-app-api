@@ -1,24 +1,42 @@
-import { ApolloServer } from '@apollo/server';
-import { startStandaloneServer } from '@apollo/server/standalone';
-import { typeDefs, resolvers } from './schema/index.js';
+import { ApolloServer } from "@apollo/server";
+import { resolvers } from "./schema/index";
 
-// A schema is a collection of type definitions (hence "typeDefs")
-// that together define the "shape" of queries that are executed against
-// your data.
+import express from "express";
+import cors from "cors";
+import gql from "graphql-tag";
+import { buildSubgraphSchema } from "@apollo/subgraph";
+import { expressMiddleware } from "@as-integrations/express5";
+import { readFileSync } from "fs";
 
-// The ApolloServer constructor requires two parameters: your schema
-// definition and your set of resolvers.
+const PORT = process.env.PORT || 4000;
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+//highlight-start
+const typeDefs = gql(
+  readFileSync("src/schema/schema.graphql", {
+    encoding: "utf-8",
+  })
+);
+
 const server = new ApolloServer({
-  typeDefs,
-  resolvers,
+  schema: buildSubgraphSchema({ typeDefs, resolvers }),
 });
+// Note you must call `start()` on the `ApolloServer`
+// instance before passing the instance to `expressMiddleware`
+(async () => {
+  await server.start();
+  // server.ap
+  //highlight-end
 
-// Passing an ApolloServer instance to the `startStandaloneServer` function:
-//  1. creates an Express app
-//  2. installs your ApolloServer instance as middleware
-//  3. prepares your app to handle incoming requests
-const { url } = await startStandaloneServer(server, {
-  listen: { port: 4000 },
-});
+  // app.use("/record", records);
 
-console.log(`🚀  Server ready at: ${url}`);
+  app.use("/graphql", cors(), express.json(), expressMiddleware(server));
+
+  // start the Express server
+  app.listen(PORT, () => {
+    console.log(`Server is running on port: ${PORT}`);
+  });
+})();
